@@ -107,4 +107,6 @@ When this README was written, **3 JavaScript tests** passed.
 
 ## Licence
 
-`theme.json` declares the licence `GPL-2.0-or-later`. The compiled bundle includes React and React DOM, which are distributed under the MIT licence.
+Flex Starter is licensed under the GNU General Public License, version 2 or (at your option) any later version (`GPL-2.0-or-later`). The full text of version 2 is in [`LICENSE`](LICENSE).
+
+The compiled bundle `assets/react/storefront.js` includes React and React DOM, which are distributed under the MIT licence.
