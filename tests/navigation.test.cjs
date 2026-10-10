@@ -32,9 +32,24 @@ function setup() {
       heading.textContent = nodes[0];
     },
   };
+  const seo = [];
+  const seoNode = (tag) => ({
+    tag,
+    remove() {
+      seo.splice(seo.indexOf(this), 1);
+    },
+  });
+  seo.push(seoNode("old"));
   const doc = {
     title: "Начало",
-    head: { append() {} },
+    head: {
+      append(node) {
+        if (node.tag) seo.push(node);
+      },
+      querySelectorAll: (selector) =>
+        selector === "[data-flex-seo]" ? [...seo] : [],
+    },
+    importNode: (node) => seoNode(node.tag),
     body: { append() {} },
     querySelector: (selector) =>
       selector === ".site-main-fullscreen" ? main : null,
@@ -72,6 +87,10 @@ function setup() {
       const next = { childNodes: [html], querySelectorAll: () => [] };
       return {
         title: html,
+        head: {
+          querySelectorAll: (selector) =>
+            selector === "[data-flex-seo]" ? [{ tag: "seo:" + html }] : [],
+        },
         querySelector: (selector) =>
           selector === ".site-main-fullscreen" ? next : null,
         querySelectorAll: (selector) =>
@@ -111,7 +130,7 @@ function setup() {
   });
   const reply = (request, title, ok = true) =>
     request.resolve({ ok, url: request.url, text: async () => title });
-  return { window, requests, reply, main, doc, events, assigned, pushed };
+  return { window, requests, reply, main, doc, events, assigned, pushed, seo };
 }
 
 test("public pages retain the document and reuse a module with a version query", async () => {
@@ -121,6 +140,10 @@ test("public pages retain the document and reuse a module with a version query",
   await settle();
   assert.deepEqual(app.main.childNodes, ["За нас"]);
   assert.equal(app.doc.title, "За нас");
+  assert.deepEqual(
+    app.seo.map((node) => node.tag),
+    ["seo:За нас"],
+  );
   assert.deepEqual(app.assigned, []);
   assert.equal(app.pushed[0], "http://localhost:8080/about");
   assert.ok(app.events.includes("flex:page-before-change"));
@@ -147,5 +170,9 @@ test("HTTP failures keep the current content and use normal navigation", async (
   await settle();
   assert.deepEqual(app.main.childNodes, ["Начало"]);
   assert.deepEqual(app.assigned, ["http://localhost:8080/missing"]);
+  assert.deepEqual(
+    app.seo.map((node) => node.tag),
+    ["old"],
+  );
   assert.deepEqual(app.pushed, []);
 });

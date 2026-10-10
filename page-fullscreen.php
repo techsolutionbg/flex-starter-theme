@@ -23,11 +23,20 @@ $pageContent = preg_replace_callback('/<link\b[^>]*>/i', static function (array 
 }, $pageContent) ?? $pageContent;
 ?>
 <!doctype html>
-<html lang="bg">
+<?php
+$documentLanguage = ($site['locale'] ?? 'bg') === 'en' ? 'en' : 'bg';
+$documentTitle = is_string($document_title ?? null) && trim($document_title) !== '' ? $document_title : $pageTitle;
+?>
+<?php
+// Formats for /assets/flex-time.js, which shows <time data-flex-time> values in the visitor's time zone.
+$dateFormat = htmlspecialchars((string) ($site['date_format'] ?? 'd.m.Y'), ENT_QUOTES, 'UTF-8');
+$timeFormat = htmlspecialchars((string) ($site['time_format'] ?? 'H:i'), ENT_QUOTES, 'UTF-8');
+?>
+<html lang="<?= $documentLanguage ?>" data-flex-date-format="<?= $dateFormat ?>" data-flex-time-format="<?= $timeFormat ?>">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
+    <title><?= htmlspecialchars($documentTitle, ENT_QUOTES, 'UTF-8') ?></title>
     <link rel="stylesheet" href="<?= htmlspecialchars($theme_asset('style.css'), ENT_QUOTES, 'UTF-8') ?>">
     <?php
     $pageStyleBlob = implode('', $pageStyles);
@@ -92,6 +101,8 @@ $pageContent = preg_replace_callback('/<link\b[^>]*>/i', static function (array 
         })();
     </script>
     <script defer src="<?= htmlspecialchars($theme_asset('navigation.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+    <?php // The same URL as in plugin imports, so the browser loads the module once. ?>
+    <script type="module" src="/assets/flex-time.js"></script>
     <?php if (is_file(__DIR__ . '/assets/react/storefront.js')): ?>
     <?php $storefrontVersion = substr(hash_file('sha256', __DIR__ . '/assets/react/storefront.js'), 0, 16); ?>
     <script type="module" src="<?= htmlspecialchars($theme_asset('react/storefront.js') . '?v=' . $storefrontVersion, ENT_QUOTES, 'UTF-8') ?>"></script>

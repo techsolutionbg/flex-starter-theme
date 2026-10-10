@@ -126,6 +126,15 @@ for (const menu of menus) {
         throw new Error("Inline page script requires a full navigation");
       return [...new Set(modules)];
     }
+    // SEO plugins mark their <head> tags so canonical, meta and JSON-LD follow the visible page.
+    function replaceSeoTags(page) {
+      document.head
+        .querySelectorAll("[data-flex-seo]")
+        .forEach((node) => node.remove());
+      for (const node of page.head?.querySelectorAll("[data-flex-seo]") ?? []) {
+        document.head.append(document.importNode(node, true));
+      }
+    }
     async function loadPage(url, signal) {
       const response = await fetch(url.href, {
         credentials: "same-origin",
@@ -180,6 +189,7 @@ for (const menu of menus) {
           .forEach((node) => node.remove());
         main.replaceChildren(...nextMain.childNodes);
         document.title = page.title;
+        replaceSeoTags(page);
         if (push) history.pushState({ commerceScroll: [0, 0] }, "", result.url);
         updateNavigationLinks();
         for (const src of modules) {
