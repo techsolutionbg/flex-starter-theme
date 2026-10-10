@@ -1,0 +1,27 @@
+{
+  "id": "flex-starter",
+  "name": "Flex Starter",
+  "version": "1.0.6",
+  "author": "Flex CMS",
+  "description": "Минимална PHP тема за Flex CMS.",
+  "screenshot": "screenshot.png",
+  "tags": [
+    "Минимална",
+    "PHP",
+    "Персонализируема"
+  ],
+  "license": "GPL-2.0-or-later",
+  "supports": {
+    "menus": true,
+    "navigation": true,
+    "featured_image": true,
+    "custom_logo": true,
+    "form_controls": true
+  },
+  "menu_locations": {
+    "primary": "Основно меню",
+    "footer": "Меню във футъра",
+    "secondary": "Допълнително меню"
+  },
+  "minimum_platform_version": "0.1.54"
+}
