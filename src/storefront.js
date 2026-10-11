@@ -253,12 +253,16 @@ const runtime = Object.freeze({
   unmount,
 });
 window.FlexStorefront = runtime;
-for (const element of document.querySelectorAll(
-  '[data-flex-react="shop-search"]',
-)) {
-  mount("shop-search", element, {
-    initialValue: element.querySelector("input")?.value ?? "",
-  });
+// With the theme's lazy loader (assets/storefront-loader.js) the loader mounts the search itself, keeping the
+// visitor's text, focus and caret; otherwise the search is mounted here.
+if (!window.FlexStorefrontLoader) {
+  for (const element of document.querySelectorAll(
+    '[data-flex-react="shop-search"]',
+  )) {
+    mount("shop-search", element, {
+      initialValue: element.querySelector("input")?.value ?? "",
+    });
+  }
 }
 window.dispatchEvent(
   new CustomEvent("flex:storefront-ready", { detail: runtime }),

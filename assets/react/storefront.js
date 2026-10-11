@@ -9081,8 +9081,7 @@ function te(e) {
 }
 function ne(e, t) {
 	if (!/^[a-z][a-z0-9.-]*$/.test(e) || typeof t != "function") throw TypeError("Invalid storefront component");
-	if (y.has(e)) return;
-	y.set(e, t);
+	y.has(e) || y.set(e, t);
 }
 function re({ initialValue: e = "" }) {
 	let [t, n] = _.useState(e), [r, i] = _.useState(!1), [a, o] = _.useState([]), [s, c] = _.useState(!1), [l, u] = _.useState(!1), [d, f] = _.useState(-1), p = _.useRef(null);
@@ -9187,8 +9186,7 @@ var x = Object.freeze({
 	mount: ee,
 	unmount: te
 });
-window.FlexStorefront = x;
-for (let e of document.querySelectorAll("[data-flex-react=\"shop-search\"]")) ee("shop-search", e, { initialValue: e.querySelector("input")?.value ?? "" });
+if (window.FlexStorefront = x, !window.FlexStorefrontLoader) for (let e of document.querySelectorAll("[data-flex-react=\"shop-search\"]")) ee("shop-search", e, { initialValue: e.querySelector("input")?.value ?? "" });
 window.dispatchEvent(new CustomEvent("flex:storefront-ready", { detail: x }));
 //#endregion
 export { _ as React, ee as mount, ne as register, te as unmount };

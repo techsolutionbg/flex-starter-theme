@@ -112,7 +112,8 @@ $timeFormat = htmlspecialchars((string) ($site['time_format'] ?? 'H:i'), ENT_QUO
         $storefrontUrl .= '?v=' . substr(hash_file('sha256', __DIR__ . '/assets/react/storefront.js'), 0, 16);
     }
     ?>
-    <script type="module" src="<?= htmlspecialchars($storefrontUrl, ENT_QUOTES, 'UTF-8') ?>"></script>
+    <?php // React loads only when something needs it (assets/storefront-loader.js). ?>
+    <script type="module" src="<?= htmlspecialchars($theme_asset('storefront-loader.js'), ENT_QUOTES, 'UTF-8') ?>" data-flex-storefront-runtime="<?= htmlspecialchars($storefrontUrl, ENT_QUOTES, 'UTF-8') ?>"></script>
     <?php endif; ?>
 </head>
 <body>

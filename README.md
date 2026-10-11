@@ -2,7 +2,7 @@
 
 A minimal, customisable PHP storefront theme for Flex CMS, with a shop header, fast page navigation and a small React runtime for public components.
 
-Version: **1.1.0** · ID: `flex-starter` · Minimum Flex CMS version: **0.1.54**.
+Version: **1.2.0** · ID: `flex-starter` · Minimum Flex CMS version: **0.1.54**.
 
 GitHub repository: `techsolutionbg/flex-starter-theme`.
 
@@ -19,6 +19,7 @@ Place the theme in `themes/flex-starter/`, with `theme.json` directly inside tha
 - Menu locations `primary`, `secondary` and `footer`. The secondary menu is shown below the header and the footer menu in the page footer.
 - Declared support in `theme.json` for menus, navigation, featured images, custom logos and the shared form controls. The header currently shows a fixed text brand.
 - A full-width page template used for pages and the 404 page.
+- Lazy React: the storefront runtime (`assets/react/storefront.js`) loads only when a plugin asks for it through `window.FlexStorefrontLoader.load()` or when the visitor turns to the header search; until then pages carry no React.
 - Local times: the platform module `/assets/flex-time.js` is loaded on every page and `<html>` carries the date and time formats from the general settings, so any `<time data-flex-time datetime="…Z">` (for example from the `flex_time()` template function) is shown in the visitor's time zone with a relative time, such as „10.10.2026 14:30 · преди 5 минути“.
 - SEO support: `<title>` uses the `document_title` value from the `public.title` filter (Flex CMS 0.1.59+), and the `head_tags` from `public.head` are printed in `<head>`, so plugins such as Flex SEO can set titles, meta tags and structured data.
 - A page title that can be hidden per page; product, checkout and order pages provide their own heading.
