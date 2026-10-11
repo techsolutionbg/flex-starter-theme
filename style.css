@@ -838,3 +838,62 @@ a.shop-action {
   color:#fff;
 }
 .starter-home-content > .flex-gallery--slider:first-of-type .flex-gallery-dots button:focus-visible { outline:2px solid #fff;outline-offset:4px; }
+
+/* Placeholder of the next page while it loads (assets/navigation.js). */
+.flex-page-skeleton {
+  width: min(var(--starter-container-width, 1440px), 100%);
+  margin: 0 auto;
+  padding: 1.5rem var(--starter-container-gutter, 1.5rem) 3rem;
+  box-sizing: border-box;
+}
+.flex-skeleton-page {
+  display: grid;
+  gap: 0.85rem;
+}
+.flex-skeleton {
+  display: block;
+  height: 1rem;
+  border-radius: 0.4rem;
+  background: linear-gradient(90deg, var(--starter-border) 0%, var(--starter-background) 50%, var(--starter-border) 100%);
+  background-size: 200% 100%;
+  animation: flex-skeleton-shimmer 1.2s ease-in-out infinite;
+}
+.flex-skeleton.is-crumbs { width: 12rem; height: 0.8rem; }
+.flex-skeleton.is-title { width: min(28rem, 70%); height: 2rem; margin: 0.4rem 0 0.6rem; }
+.flex-skeleton.is-short { width: 55%; }
+.flex-skeleton.is-block { height: 12rem; margin-top: 0.6rem; }
+.flex-skeleton.is-media { height: auto; aspect-ratio: 1; border-radius: 0.6rem; }
+.flex-skeleton.is-button { width: 11rem; height: 2.75rem; margin-top: 0.8rem; }
+.flex-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(14rem, 100%), 1fr));
+  gap: 1.25rem;
+}
+.flex-skeleton-card {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border: 1px solid var(--starter-border);
+  border-radius: 0.75rem;
+  background: var(--starter-surface);
+}
+.flex-skeleton-product {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+.flex-skeleton-product > div {
+  display: grid;
+  gap: 0.85rem;
+}
+@media (max-width: 760px) {
+  .flex-skeleton-product { grid-template-columns: 1fr; }
+}
+@keyframes flex-skeleton-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flex-skeleton { animation: none; }
+}

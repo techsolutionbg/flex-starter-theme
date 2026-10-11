@@ -8,11 +8,38 @@ const source = fs.readFileSync(
   "utf8",
 );
 const settle = () => new Promise((resolve) => setImmediate(resolve));
+class HTMLFormElement {
+  constructor(fields, options = {}) {
+    this.fields = fields;
+    this.method = options.method ?? "post";
+    this.action = options.action ?? "http://localhost:8080/account";
+    this.target = "";
+    this.enctype = "application/x-www-form-urlencoded";
+    this.elements = [];
+    this.submitted = false;
+  }
+  hasAttribute() {
+    return false;
+  }
+  matches() {
+    return false;
+  }
+  submit() {
+    this.submitted = true;
+  }
+}
+function submit(app, form) {
+  const event = { target: form, submitter: null, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+  app.listeners.submit(event);
+  return event;
+}
 function setup() {
   const events = [],
     requests = [],
     assigned = [],
-    pushed = [];
+    pushed = [],
+    replaced = [],
+    listeners = {};
   const location = {
     href: "http://localhost:8080/",
     origin: "http://localhost:8080",
@@ -47,7 +74,7 @@ function setup() {
         if (node.tag) seo.push(node);
       },
       querySelectorAll: (selector) =>
-        selector === "[data-flex-seo]" ? [...seo] : [],
+        selector.includes("[data-flex-seo]") ? [...seo] : [],
     },
     importNode: (node) => seoNode(node.tag),
     body: { append() {} },
@@ -61,14 +88,20 @@ function setup() {
             },
           ]
         : [],
-    createElement: () => ({ setAttribute() {} }),
-    addEventListener() {},
+    createElement: () => ({ setAttribute() {}, className: "", innerHTML: "" }),
+    addEventListener: (type, listener) => {
+      listeners[type] = listener;
+    },
     dispatchEvent: (event) => events.push(event.type),
   };
   const history = {
     state: null,
-    replaceState(value) {
+    replaceState(value, _, url) {
       this.state = value;
+      if (url) {
+        location.href = url;
+        replaced.push(url);
+      }
     },
     pushState(value, _, url) {
       this.state = value;
@@ -89,7 +122,7 @@ function setup() {
         title: html,
         head: {
           querySelectorAll: (selector) =>
-            selector === "[data-flex-seo]" ? [{ tag: "seo:" + html }] : [],
+            selector.includes("[data-flex-seo]") ? [{ tag: "seo:" + html }] : [],
         },
         querySelector: (selector) =>
           selector === ".site-main-fullscreen" ? next : null,
@@ -113,6 +146,15 @@ function setup() {
     history,
     URL,
     URLSearchParams,
+    HTMLFormElement,
+    FormData: class {
+      constructor(form) {
+        this.form = form;
+      }
+      entries() {
+        return this.form.fields;
+      }
+    },
     DOMParser: Parser,
     AbortController,
     CustomEvent: class {
@@ -128,9 +170,9 @@ function setup() {
     setTimeout,
     clearTimeout,
   });
-  const reply = (request, title, ok = true) =>
-    request.resolve({ ok, url: request.url, text: async () => title });
-  return { window, requests, reply, main, doc, events, assigned, pushed, seo };
+  const reply = (request, title, ok = true, url = request.url) =>
+    request.resolve({ ok, url, text: async () => title });
+  return { window, requests, reply, main, doc, events, assigned, pushed, replaced, listeners, seo };
 }
 
 test("public pages retain the document and reuse a module with a version query", async () => {
@@ -160,19 +202,98 @@ test("a slow previous response cannot replace the latest navigation", async () =
   app.reply(app.requests[0], "За нас");
   await settle();
   assert.deepEqual(app.main.childNodes, ["Контакти"]);
-  assert.deepEqual(app.pushed, ["http://localhost:8080/contact"]);
+  // Each click changes the address at once; the late answer for /about changes nothing.
+  assert.deepEqual(app.pushed, ["http://localhost:8080/about", "http://localhost:8080/contact"]);
+  assert.equal(app.doc.title, "Контакти");
 });
 
-test("HTTP failures keep the current content and use normal navigation", async () => {
+test("HTTP failures load the server's page in full", async () => {
   const app = setup();
   app.window.FlexNavigation.navigate("/missing");
   app.reply(app.requests[0], "Не е намерено", false);
   await settle();
-  assert.deepEqual(app.main.childNodes, ["Начало"]);
   assert.deepEqual(app.assigned, ["http://localhost:8080/missing"]);
   assert.deepEqual(
     app.seo.map((node) => node.tag),
     ["old"],
   );
+});
+
+test("the next page appears at once as a placeholder and loads in its place", async () => {
+  const app = setup();
+  app.window.FlexNavigation.navigate("/product/mug");
+  // Before any answer: the address is the new one and the content is the placeholder.
+  assert.deepEqual(app.pushed, ["http://localhost:8080/product/mug"]);
+  assert.equal(app.main.childNodes[0].className, "flex-page-skeleton");
+  assert.ok(app.events.includes("flex:page-skeleton"));
+  assert.ok(app.events.indexOf("flex:page-before-change") < app.events.indexOf("flex:page-skeleton"));
+  app.reply(app.requests[0], "Чаша");
+  await settle();
+  assert.deepEqual(app.main.childNodes, ["Чаша"]);
+  assert.deepEqual(app.pushed, ["http://localhost:8080/product/mug"], "no second history entry");
+});
+
+test("forms are sent in the background and their answer replaces the content", async () => {
+  const app = setup();
+  const form = new HTMLFormElement([["_token", "t"], ["name", "Иван"]]);
+  const event = submit(app, form);
+  assert.equal(event.defaultPrevented, true);
+  assert.equal(app.requests[0].options.method, "POST");
+  assert.equal(app.requests[0].options.body, "_token=t&name=%D0%98%D0%B2%D0%B0%D0%BD");
+  // The server redirects to the account page after saving.
+  app.reply(app.requests[0], "Профил", true, "http://localhost:8080/account?saved=1");
+  await settle();
+  assert.deepEqual(app.main.childNodes, ["Профил"]);
+  assert.deepEqual(app.pushed, ["http://localhost:8080/account?saved=1"]);
+  assert.deepEqual(app.assigned, []);
+});
+
+test("a form answering with an error page shows it on the same address", async () => {
+  const app = setup();
+  app.window.FlexNavigation.navigate("/account/password");
+  app.reply(app.requests[0], "Парола");
+  await settle();
+  submit(app, new HTMLFormElement([["password", "x"]], { action: "http://localhost:8080/account/password" }));
+  app.reply(app.requests[1], "Паролата е твърде кратка", false);
+  await settle();
+  assert.deepEqual(app.main.childNodes, ["Паролата е твърде кратка"]);
+  assert.deepEqual(app.pushed, ["http://localhost:8080/account/password"]);
+  assert.deepEqual(app.replaced, ["http://localhost:8080/account/password"]);
+});
+
+test("forms of other sites and forms with files are submitted as usual", () => {
+  const app = setup();
+  assert.equal(submit(app, new HTMLFormElement([], { action: "https://example.com/pay" })).defaultPrevented, false);
+  const upload = new HTMLFormElement([]);
+  upload.enctype = "multipart/form-data";
+  assert.equal(submit(app, upload).defaultPrevented, false);
+  assert.equal(app.requests.length, 0);
+});
+
+test("search keeps empty fields out of the address", async () => {
+  const app = setup();
+  const form = new HTMLFormElement([["q", "чаша"], ["sort", ""]], { method: "get", action: "http://localhost:8080/catalog" });
+  form.matches = () => true;
+  submit(app, form);
+  assert.equal(app.requests[0].url, "http://localhost:8080/catalog?q=%D1%87%D0%B0%D1%88%D0%B0");
+  assert.equal(app.requests[0].options.method, "GET");
+});
+
+test("plugins can replace the current page, for example when an order link expires", async () => {
+  const app = setup();
+  app.window.FlexNavigation.navigate("/", { replace: true });
+  app.reply(app.requests[0], "Начало");
+  await settle();
   assert.deepEqual(app.pushed, []);
+  assert.deepEqual(app.replaced, ["http://localhost:8080/"]);
+});
+
+test("a form that cannot be shown in place is submitted normally", async () => {
+  const app = setup();
+  const form = new HTMLFormElement([["a", "1"]]);
+  submit(app, form);
+  app.requests[0].resolve({ ok: true, url: "https://elsewhere.example/", text: async () => "x" });
+  await settle();
+  assert.equal(form.submitted, true);
+  assert.deepEqual(app.assigned, []);
 });

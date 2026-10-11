@@ -126,27 +126,84 @@ for (const menu of menus) {
         throw new Error("Inline page script requires a full navigation");
       return [...new Set(modules)];
     }
-    // SEO plugins mark their <head> tags so canonical, meta and JSON-LD follow the visible page.
+    // The <head> tags search engines and link previews read follow the visible page: those SEO plugins mark,
+    // and the usual description, robots, canonical, Open Graph, X and JSON-LD tags. Every URL is also served as
+    // a full page, so crawlers never depend on this.
+    const headTags =
+      '[data-flex-seo], meta[name="description"], meta[name="robots"], link[rel="canonical"], meta[property^="og:"], meta[name^="twitter:"], script[type="application/ld+json"]';
     function replaceSeoTags(page) {
-      document.head
-        .querySelectorAll("[data-flex-seo]")
-        .forEach((node) => node.remove());
-      for (const node of page.head?.querySelectorAll("[data-flex-seo]") ?? []) {
+      document.head.querySelectorAll(headTags).forEach((node) => node.remove());
+      for (const node of page.head?.querySelectorAll(headTags) ?? []) {
         document.head.append(document.importNode(node, true));
       }
+      const lang = page.documentElement?.getAttribute?.("lang");
+      if (lang) document.documentElement?.setAttribute?.("lang", lang);
     }
-    async function loadPage(url, signal) {
+    // Parts outside <main> that depend on the visitor, such as the account link after signing in or out. They
+    // are replaced only when the server renders them differently, so counts kept by scripts are left alone.
+    const regionSources = new Map(
+      [...document.querySelectorAll("[data-flex-region]")].map((node) => [node.dataset.flexRegion, node.outerHTML]),
+    );
+    function replaceRegions(page) {
+      for (const next of page.querySelectorAll?.("[data-flex-region]") ?? []) {
+        const name = next.dataset.flexRegion;
+        const current = [...document.querySelectorAll("[data-flex-region]")].find((node) => node.dataset.flexRegion === name);
+        if (!current || regionSources.get(name) === next.outerHTML) continue;
+        regionSources.set(name, next.outerHTML);
+        current.replaceWith(document.importNode(next, true));
+      }
+    }
+    // The next page appears at once as a placeholder in its shape, and loads in its own place. Plugins choose
+    // the shape for their addresses on flex:page-skeleton (detail.variant: "page", "grid" or "product"), or
+    // draw their own placeholder into detail.main and cancel the event.
+    const skeletonVariants = {
+      page: '<div class="flex-skeleton-page"><span class="flex-skeleton is-crumbs"></span><span class="flex-skeleton is-title"></span><span class="flex-skeleton"></span><span class="flex-skeleton"></span><span class="flex-skeleton is-short"></span><span class="flex-skeleton is-block"></span></div>',
+      grid:
+        '<div class="flex-skeleton-page"><span class="flex-skeleton is-crumbs"></span><span class="flex-skeleton is-title"></span><div class="flex-skeleton-grid">' +
+        '<div class="flex-skeleton-card"><span class="flex-skeleton is-media"></span><span class="flex-skeleton"></span><span class="flex-skeleton is-short"></span></div>'.repeat(8) +
+        "</div></div>",
+      product:
+        '<div class="flex-skeleton-page"><span class="flex-skeleton is-crumbs"></span><div class="flex-skeleton-product"><span class="flex-skeleton is-media"></span><div><span class="flex-skeleton is-title"></span><span class="flex-skeleton is-short"></span><span class="flex-skeleton"></span><span class="flex-skeleton"></span><span class="flex-skeleton is-button"></span></div></div></div>',
+    };
+    function showSkeleton(url) {
+      document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close());
+      document.dispatchEvent(new CustomEvent("flex:page-before-change"));
+      const detail = { url: url.href, variant: "page", main };
+      const event = new CustomEvent("flex:page-skeleton", { detail, cancelable: true });
+      document.dispatchEvent(event);
+      if (!event.defaultPrevented) {
+        const placeholder = document.createElement("div");
+        placeholder.className = "flex-page-skeleton";
+        placeholder.setAttribute("aria-hidden", "true");
+        placeholder.innerHTML = skeletonVariants[detail.variant] ?? skeletonVariants.page;
+        main.replaceChildren(placeholder);
+      }
+      updateNavigationLinks();
+      window.scrollTo({ left: 0, top: 0, behavior: "instant" });
+    }
+
+    async function loadPage(url, signal, request = {}) {
+      const method = (request.method || "GET").toUpperCase();
       const response = await fetch(url.href, {
+        method,
         credentials: "same-origin",
         signal,
-        headers: { Accept: "text/html" },
+        headers: {
+          Accept: "text/html",
+          ...(request.body ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
+        },
+        ...(request.body ? { body: request.body } : {}),
       });
-      if (!response.ok || !isStoreUrl(new URL(response.url)))
+      // A submitted form may answer with its page and an error status (for example invalid input); a link that
+      // fails gets the server's own error page through a full load.
+      if ((!response.ok && method === "GET") || !isStoreUrl(new URL(response.url)))
         throw new Error("Invalid storefront response");
+      if (!(response.headers?.get?.("Content-Type") ?? "text/html").includes("text/html"))
+        throw new Error("Not a page");
       const html = await response.text();
       return { html, url: response.url };
     }
-    async function navigateStorefront(url, push = true, scroll = null) {
+    async function navigateStorefront(url, push = true, scroll = null, request = {}) {
       pending?.abort();
       const controller = new AbortController();
       pending = controller;
@@ -155,12 +212,20 @@ for (const menu of menus) {
         new CustomEvent("flex:page-loading", { detail: true }),
       );
       announcement.textContent = "Зареждане…";
+      let changed = false;
       try {
         const preview = previews.get(url.href);
-        const result =
-          preview && Date.now() - preview.time < 10000
-            ? await preview.promise
-            : await loadPage(url, controller.signal);
+        const usePreview = preview && !request.method && Date.now() - preview.time < 10000;
+        // A page already loaded in advance is shown directly; any other switches to its placeholder now.
+        if (!(usePreview && preview.ready)) {
+          if (push && !request.method && !request.replace) {
+            history.replaceState({ ...history.state, commerceScroll: [window.scrollX, window.scrollY] }, "");
+            history.pushState({ commerceScroll: [0, 0] }, "", url.href);
+            changed = true;
+          }
+          showSkeleton(url);
+        }
+        const result = usePreview ? await preview.promise : await loadPage(url, controller.signal, request);
         previews.delete(url.href);
         if (controller.signal.aborted) return;
         const page = new DOMParser().parseFromString(result.html, "text/html");
@@ -168,7 +233,7 @@ for (const menu of menus) {
         if (!nextMain) throw new Error("Incompatible page template");
         const modules = await prepareAssets(page);
         if (controller.signal.aborted) return;
-        if (push) {
+        if (push && !changed) {
           history.replaceState(
             {
               ...history.state,
@@ -177,10 +242,12 @@ for (const menu of menus) {
             "",
           );
         }
-        document
-          .querySelectorAll("dialog[open]")
-          .forEach((dialog) => dialog.close());
-        document.dispatchEvent(new CustomEvent("flex:page-before-change"));
+        if (!main.querySelector(".flex-page-skeleton")) {
+          document
+            .querySelectorAll("dialog[open]")
+            .forEach((dialog) => dialog.close());
+          document.dispatchEvent(new CustomEvent("flex:page-before-change"));
+        }
         // Assets are already loaded. Do not insert another module or execute response scripts.
         nextMain
           .querySelectorAll(
@@ -190,7 +257,12 @@ for (const menu of menus) {
         main.replaceChildren(...nextMain.childNodes);
         document.title = page.title;
         replaceSeoTags(page);
-        if (push) history.pushState({ commerceScroll: [0, 0] }, "", result.url);
+        replaceRegions(page);
+        // A form answering on its own address, or a page that replaces the current one, keeps one history entry.
+        if (changed || request.replace || (push && request.method && result.url === location.href)) {
+          // The address was changed with the placeholder; a redirect may still change it.
+          if (!changed || result.url !== location.href) history.replaceState({ commerceScroll: [0, 0] }, "", result.url);
+        } else if (push) history.pushState({ commerceScroll: [0, 0] }, "", result.url);
         updateNavigationLinks();
         for (const src of modules) {
           await import(src);
@@ -219,7 +291,18 @@ for (const menu of menus) {
       } catch (error) {
         if (error.name !== "AbortError" && !controller.signal.aborted) {
           console.warn("Flex navigation used a full page load:", error.message);
-          location.assign(url.href);
+          // A form is sent again as a normal submission, so what was entered is not lost.
+          if (request.form) {
+            // The form was replaced by the placeholder; a copy keeps what was entered.
+            const copy = request.form.isConnected === false ? request.form.cloneNode?.(true) ?? request.form : request.form;
+            if (copy !== request.form) {
+              copy.hidden = true;
+              document.body.append(copy);
+            }
+            HTMLFormElement.prototype.submit.call(copy);
+          }
+          else if (request.replace) location.replace(url.href);
+          else location.assign(url.href);
         }
       } finally {
         if (pending === controller) {
@@ -260,28 +343,45 @@ for (const menu of menus) {
       event.preventDefault();
       navigateStorefront(url);
     });
+    // Forms of the site are sent in the background and their answer replaces the content, like links. Forms with
+    // files, another target or data-full-navigation, and forms of other sites, are submitted as usual.
     document.addEventListener("submit", (event) => {
       if (event.defaultPrevented) return;
       const form = event.target;
+      if (!(form instanceof HTMLFormElement) || form.hasAttribute("data-full-navigation")) return;
+      const submitter = event.submitter;
+      const method = (submitter?.getAttribute("formmethod") || form.method || "get").toLowerCase();
+      const target = submitter?.getAttribute("formtarget") || form.target;
+      const url = new URL(submitter?.getAttribute("formaction") || form.action, location.href);
       if (
-        !(form instanceof HTMLFormElement) ||
-        !form.matches(".commerce-filters, .shop-search")
+        !isStoreUrl(url) ||
+        (target && target !== "_self") ||
+        !(method === "get" || method === "post") ||
+        form.enctype === "multipart/form-data" ||
+        [...form.elements].some((field) => field.type === "file")
       )
         return;
-      const url = new URL(form.action, location.href);
-      if (!isStoreUrl(url)) return;
       event.preventDefault();
       const params = new URLSearchParams();
-      for (const [key, value] of new FormData(form).entries()) {
-        if (typeof value === "string" && value.trim() !== "") params.append(key, value);
+      // Search and filters leave empty fields out of the address.
+      const compact = form.matches(".commerce-filters, .shop-search");
+      for (const [key, value] of new FormData(form, submitter ?? undefined).entries()) {
+        if (typeof value !== "string" || (compact && value.trim() === "")) continue;
+        params.append(key, value);
       }
-      url.search = params.toString();
-      navigateStorefront(url);
+      if (method === "get") {
+        url.search = params.toString();
+        navigateStorefront(url);
+      } else {
+        navigateStorefront(url, true, null, { method: "POST", body: params.toString(), form });
+      }
     });
     window.FlexNavigation = Object.freeze({
-      navigate: (value) => {
+      // Plugins open pages through this, for example after signing in or placing an order.
+      navigate: (value, options = {}) => {
         const url = new URL(value, location.href);
-        if (isStoreUrl(url)) navigateStorefront(url);
+        if (isStoreUrl(url)) navigateStorefront(url, true, null, { replace: options.replace === true });
+        else if (options.replace === true) location.replace(url.href);
         else location.assign(url.href);
       },
     });
@@ -318,8 +418,9 @@ for (const menu of menus) {
           if (Date.now() - value.time >= 10000) previews.delete(key);
         if (previews.size >= 2) return;
         const promise = loadPage(url);
-        previews.set(url.href, { time: Date.now(), promise });
-        promise.catch(() => previews.delete(url.href));
+        const entry = { time: Date.now(), promise, ready: false };
+        previews.set(url.href, entry);
+        promise.then(() => (entry.ready = true)).catch(() => previews.delete(url.href));
       }, 180);
     }
     document.addEventListener("pointerover", prepareProduct);

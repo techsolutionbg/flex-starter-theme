@@ -2,7 +2,7 @@
 
 A minimal, customisable PHP storefront theme for Flex CMS, with a shop header, fast page navigation and a small React runtime for public components.
 
-Version: **1.2.0** · ID: `flex-starter` · Minimum Flex CMS version: **0.1.54**.
+Version: **1.3.0** · ID: `flex-starter` · Minimum Flex CMS version: **0.1.54**.
 
 GitHub repository: `techsolutionbg/flex-starter-theme`.
 
@@ -19,6 +19,7 @@ Place the theme in `themes/flex-starter/`, with `theme.json` directly inside tha
 - Menu locations `primary`, `secondary` and `footer`. The secondary menu is shown below the header and the footer menu in the page footer.
 - Declared support in `theme.json` for menus, navigation, featured images, custom logos and the shared form controls. The header currently shows a fixed text brand.
 - A full-width page template used for pages and the 404 page.
+- Page navigation: links and every form of the site open without reloading the page, and `<head>` (title, description, canonical, Open Graph, JSON-LD) follows the visible page; each address still returns the full page from the server, so search engines and visitors without JavaScript see complete pages. Mark a link or form with `data-full-navigation` to load it in full, and header parts that depend on the visitor with `data-flex-region`. Plugins open pages with `window.FlexNavigation.navigate(url, {replace})`. On a click the address, the menu and a placeholder of the next page appear at once; plugins choose its shape (`page`, `grid`, `product`) by setting `event.detail.variant` on `flex:page-skeleton`.
 - Lazy React: the storefront runtime (`assets/react/storefront.js`) loads only when a plugin asks for it through `window.FlexStorefrontLoader.load()` or when the visitor turns to the header search; until then pages carry no React.
 - Local times: the platform module `/assets/flex-time.js` is loaded on every page and `<html>` carries the date and time formats from the general settings, so any `<time data-flex-time datetime="…Z">` (for example from the `flex_time()` template function) is shown in the visitor's time zone with a relative time, such as „10.10.2026 14:30 · преди 5 минути“.
 - SEO support: `<title>` uses the `document_title` value from the `public.title` filter (Flex CMS 0.1.59+), and the `head_tags` from `public.head` are printed in `<head>`, so plugins such as Flex SEO can set titles, meta tags and structured data.
