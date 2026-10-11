@@ -643,6 +643,11 @@ select.flex-input[aria-invalid="true"] {
 .shop-action > span:not(.shop-cart-count) {
   font-size: 0.8rem;
 }
+/* Header links (account, favourites) look like the header buttons. */
+a.shop-action {
+  text-decoration: none;
+  color: inherit;
+}
 .shop-action:disabled {
   opacity: 0.6;
   cursor: not-allowed;

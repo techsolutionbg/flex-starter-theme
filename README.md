@@ -2,7 +2,7 @@
 
 A minimal, customisable PHP storefront theme for Flex CMS, with a shop header, fast page navigation and a small React runtime for public components.
 
-Version: **1.0.8** · ID: `flex-starter` · Minimum Flex CMS version: **0.1.54**.
+Version: **1.1.0** · ID: `flex-starter` · Minimum Flex CMS version: **0.1.54**.
 
 GitHub repository: `techsolutionbg/flex-starter-theme`.
 

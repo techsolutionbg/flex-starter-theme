@@ -63,7 +63,8 @@ $timeFormat = htmlspecialchars((string) ($site['time_format'] ?? 'H:i'), ENT_QUO
     <?php foreach ($pageStyles as $stylesheet): ?>
     <?= $stylesheet ?>
     <?php endforeach; ?>
-    <?php if (class_exists(\Flex\Commerce\PublicCatalog::class)): ?>
+    <?php // Flex CMS 0.1.62+ loads the storefront files through plugin asset groups only where they are used. ?>
+    <?php if (class_exists(\Flex\Commerce\PublicCatalog::class) && !class_exists(\Flex\Extensions\PublicAssetQueue::class)): ?>
     <?php if (!str_contains($pageStyleBlob . $extensionTags, "/extensions/flex/commerce/assets/assets/cart.css")): ?>
     <link rel="stylesheet" href="/extensions/flex/commerce/assets/assets/cart.css?v=3">
     <?php endif; ?>
@@ -104,8 +105,14 @@ $timeFormat = htmlspecialchars((string) ($site['time_format'] ?? 'H:i'), ENT_QUO
     <?php // The same URL as in plugin imports, so the browser loads the module once. ?>
     <script type="module" src="/assets/flex-time.js"></script>
     <?php if (is_file(__DIR__ . '/assets/react/storefront.js')): ?>
-    <?php $storefrontVersion = substr(hash_file('sha256', __DIR__ . '/assets/react/storefront.js'), 0, 16); ?>
-    <script type="module" src="<?= htmlspecialchars($theme_asset('react/storefront.js') . '?v=' . $storefrontVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+    <?php
+    // Flex CMS 0.1.62+ versions theme_asset() URLs itself, so browsers keep the file until it changes.
+    $storefrontUrl = $theme_asset('react/storefront.js');
+    if (!str_contains($storefrontUrl, '?')) {
+        $storefrontUrl .= '?v=' . substr(hash_file('sha256', __DIR__ . '/assets/react/storefront.js'), 0, 16);
+    }
+    ?>
+    <script type="module" src="<?= htmlspecialchars($storefrontUrl, ENT_QUOTES, 'UTF-8') ?>"></script>
     <?php endif; ?>
 </head>
 <body>
